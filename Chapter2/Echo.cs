@@ -37,6 +37,7 @@ public class Echo : MonoBehaviour {
 		{
 			Socket socketAsync = (Socket)ar.AsyncState;
 			socketAsync.EndConnect(ar);
+			Debug.Log("Socket Connect Succ");
 			socketAsync.BeginReceive(readBuff, 0, 1024, 0, ReceiveCallBack, socketAsync);
 			
 
@@ -69,13 +70,21 @@ public class Echo : MonoBehaviour {
 		//Send
 		string sendStr = InputFeld.text;
 		byte[] sendBytes = System.Text.Encoding.Default.GetBytes(sendStr);
-		socket.Send(sendBytes);
-		//Recv
-		//byte[] readBuff = new byte[1024]; 
-		//int count = socket.Receive(readBuff);
-		//string recvStr = System.Text.Encoding.UTF8.GetString(readBuff, 0, count);
-		//text.text = recvStr;
-		//Close
-		// socket.Close();
+		socket.BeginSend(sendBytes, 0, sendBytes.Length, 0, SendCallBack, socket);
+		
+	}
+
+	void SendCallBack(IAsyncResult ar)
+	{
+		try
+		{
+			Socket socketAsync = (Socket)ar.AsyncState;
+			int count = socketAsync.EndSend(ar);
+			Debug.Log("Send Succ: bytes " + count);
+
+		} catch (Exception e)
+		{
+			Debug.Log("Send Fail: " + e.ToString());
+		}
 	}
 }
