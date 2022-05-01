@@ -54,7 +54,8 @@ public class Echo : MonoBehaviour {
 		{
 			Socket socketAsync = (Socket)ar.AsyncState;
 			int count = socketAsync.EndReceive(ar);
-			recvStr = System.Text.Encoding.UTF8.GetString(readBuff, 0, count);
+			string s = System.Text.Encoding.UTF8.GetString(readBuff, 0, count);
+			recvStr = s + "\n" + recvStr;
 			socketAsync.BeginReceive(readBuff, 0, 1024, 0, ReceiveCallBack, socketAsync);
 		} 
 		catch(Exception e)
