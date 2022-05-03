@@ -22,6 +22,8 @@ namespace EchoServer
 			//Socket
 			Socket listenfd = new Socket(AddressFamily.InterNetwork,
 				SocketType.Stream, ProtocolType.Tcp);
+			// check read
+			List<Socket> checkRead = new List<Socket>();
 			//Bind
 			IPAddress ipAdr = IPAddress.Parse("127.0.0.1");
 			IPEndPoint ipEp = new IPEndPoint(ipAdr, 8888);
@@ -31,25 +33,25 @@ namespace EchoServer
 			Console.WriteLine("[服务器]启动成功");
 			while (true)
 			{
-				if (listenfd.Poll(0, SelectMode.SelectRead))
+				checkRead.Clear();
+				checkRead.Add(listenfd);
+				foreach (ClientState cs in clientStates.Values)
 				{
-					// 监听socket accept
-					ReadListenfd(listenfd);
+					checkRead.Add(cs.socket);
 				}
-				foreach(ClientState cs in clientStates.Values)
+				// 多路复用
+				Socket.Select(checkRead, null, null, 1000);
+				foreach(Socket s in checkRead)
 				{
-					Socket clientfd = cs.socket;
-					if (clientfd.Poll(0, SelectMode.SelectRead)){
-						// 客户端消息处理
-						if (!ReadClientfd(clientfd))
-						{
-							break;
-						}
+					if (s == listenfd)
+					{
+						ReadListenfd(s);
+					}
+					else
+					{
+						ReadClientfd(s);
 					}
 				}
-
-				// 防止CPU占用过高
-				System.Threading.Thread.Sleep(1);
 			}
 		}
 
