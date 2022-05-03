@@ -12,8 +12,9 @@ namespace EchoServer
 	}
 	class MainClass
 	{
-		// clients
+		// clients 初始化clients列表
 		static Dictionary<Socket, ClientState> clientStates = new Dictionary<Socket, ClientState>();
+		
 		public static void Main (string[] args)
 		{
 			Console.WriteLine ("Hello World!");
@@ -28,11 +29,78 @@ namespace EchoServer
 			//Listen
 			listenfd.Listen(0);
 			Console.WriteLine("[服务器]启动成功");
+			while (true)
+			{
+				if (listenfd.Poll(0, SelectMode.SelectRead))
+				{
+					// 监听socket accept
+					ReadListenfd(listenfd);
+				}
+				foreach(ClientState cs in clientStates.Values)
+				{
+					Socket clientfd = cs.socket;
+					if (clientfd.Poll(0, SelectMode.SelectRead)){
+						// 客户端消息处理
+						if (!ReadClientfd(clientfd))
+						{
+							break;
+						}
+					}
+				}
 
-			// 异步Accpet
-			listenfd.BeginAccept(AcceptCallBack, listenfd);
-			// 等待
-			Console.ReadLine();
+				// 防止CPU占用过高
+				System.Threading.Thread.Sleep(1);
+			}
+		}
+
+		public static bool ReadListenfd(Socket lfd)
+		{
+			try
+			{
+				Socket cfd = lfd.Accept();
+				ClientState cs = new ClientState();
+				cs.socket = cfd;
+				clientStates[cfd] = cs;
+				return true;
+			} catch (SocketException e)
+			{
+				Console.WriteLine("Socket Accept Fail: " + e.ToString());
+				return false;
+			}
+		}
+
+		public static bool ReadClientfd(Socket cfd)
+		{
+			ClientState cliState = clientStates[cfd];
+			int count = 0;
+			try
+			{
+				count = cfd.Receive(cliState.readBuff);
+			} catch(SocketException e)
+			{
+				cfd.Close();
+				clientStates.Remove(cfd);
+				Console.WriteLine("Socket Receive Fail: " + e.ToString());
+				return false;
+			}
+			if (count == 0)
+			{
+				cfd.Close();
+				clientStates.Remove(cfd);
+				Console.WriteLine("Socket Close");
+				return false;
+			}
+			string recvStr = System.Text.Encoding.UTF8.GetString(cliState.readBuff, 0, count);
+			Console.WriteLine("[服务器接收]" + recvStr);
+			string sendStr = cfd.RemoteEndPoint.ToString() + ": " + recvStr;
+			byte[] sendBytes = System.Text.Encoding.Default.GetBytes(sendStr);
+			//广播
+			foreach(ClientState cs in clientStates.Values)
+			{
+				cs.socket.Send(sendBytes);
+			}
+
+			return true;
 		}
 
 		public static void AcceptCallBack(IAsyncResult ar)
@@ -68,13 +136,20 @@ namespace EchoServer
 				string recvStr = System.Text.Encoding.UTF8.GetString(cs.readBuff, 0, count);
 				Console.WriteLine("[服务器接收]" + recvStr);
 				//Send, 不异步
-				string sendStr = "Echo: " + recvStr;
+				string sendStr = clientfd.RemoteEndPoint.ToString() + ": " + recvStr;
 				byte[] sendBytes = System.Text.Encoding.Default.GetBytes(sendStr);
-				clientfd.Send(sendBytes);
+				foreach (ClientState cliState in clientStates.Values)
+				{
+					cliState.socket.Send(sendBytes);
+				}
 				clientfd.BeginReceive(cs.readBuff, 0, 1024, 0, ReceiveCallBack, cs);
 			}
 			catch (SocketException e)
 			{
+				ClientState cs = (ClientState)ar.AsyncState;
+				Socket clientfd = cs.socket;
+				clientfd.Close();
+				clientStates.Remove(clientfd);
 				Console.WriteLine("Socket Receive Fail: " + e.ToString());
 			}
 		}

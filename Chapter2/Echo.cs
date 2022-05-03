@@ -17,7 +17,17 @@ public class Echo : MonoBehaviour {
 	
 	void Update()
 	{
-		text.text = recvStr;
+		if (socket == null)
+			return;
+		if (socket.Poll(0, SelectMode.SelectRead))
+		{
+			byte[] readBuff = new byte[1024];
+			int count = socket.Receive(readBuff);
+			string s = System.Text.Encoding.UTF8.GetString(readBuff, 0, count);
+			recvStr = s + "\n" + recvStr;
+			text.text = recvStr;
+		}
+		
 	}
 
 	//点击连接按钮
@@ -28,7 +38,6 @@ public class Echo : MonoBehaviour {
 			SocketType.Stream, ProtocolType.Tcp);
 		//Connect
 		socket.BeginConnect("127.0.0.1", 8888, ConnectCallBack, socket);
-	
 	}
 
 	void ConnectCallBack(IAsyncResult ar)
@@ -38,8 +47,6 @@ public class Echo : MonoBehaviour {
 			Socket socketAsync = (Socket)ar.AsyncState;
 			socketAsync.EndConnect(ar);
 			Debug.Log("Socket Connect Succ");
-			socketAsync.BeginReceive(readBuff, 0, 1024, 0, ReceiveCallBack, socketAsync);
-			
 
 		}catch(Exception e)
 		{
